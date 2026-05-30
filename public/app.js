@@ -44,6 +44,7 @@ const sections = [
   }
 ];
 
+let memoryState = null;
 let state = loadState();
 let activeSectionId = null;
 let currentExercise = null;
@@ -81,7 +82,7 @@ renderStats();
 
 function loadState() {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const saved = JSON.parse(readSavedState());
     if (saved && saved.sections) return saved;
   } catch (error) {
     console.warn("Progression ignoree", error);
@@ -90,21 +91,34 @@ function loadState() {
   return {
     sections: Object.fromEntries(sections.map((section) => [
       section.id,
-      { solved: 0, attempts: 0, correctFirstTry: 0, corrections: 0 }
+      { solved: 0, attempts: 0, correctFirstTry: 0, corrections: 0, answerReveals: 0 }
     ]))
   };
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  writeSavedState(JSON.stringify(state));
   renderHome();
   renderStats();
 }
 
+function readSavedState() {
+  if (typeof localStorage === "undefined") return memoryState;
+  return localStorage.getItem(STORAGE_KEY);
+}
+
+function writeSavedState(value) {
+  memoryState = value;
+  if (typeof localStorage !== "undefined") {
+    localStorage.setItem(STORAGE_KEY, value);
+  }
+}
+
 function ensureSectionStats(sectionId) {
   if (!state.sections[sectionId]) {
-    state.sections[sectionId] = { solved: 0, attempts: 0, correctFirstTry: 0, corrections: 0 };
+    state.sections[sectionId] = { solved: 0, attempts: 0, correctFirstTry: 0, corrections: 0, answerReveals: 0 };
   }
+  state.sections[sectionId].answerReveals ||= 0;
   return state.sections[sectionId];
 }
 
@@ -150,7 +164,8 @@ function nextExercise() {
   currentExercise = {
     ...section.generator(),
     attempts: 0,
-    solved: false
+    solved: false,
+    answerShown: false
   };
   answerInput.value = "";
   feedback.className = "feedback";
@@ -165,6 +180,10 @@ function renderExercise() {
   correctionCount.textContent = `${currentExercise.attempts} correction${currentExercise.attempts > 1 ? "s" : ""}`;
   sectionProgress.textContent = `${Math.min(stats.solved, TOTAL_PER_SECTION)} / ${TOTAL_PER_SECTION}`;
   exercisePrompt.textContent = currentExercise.prompt;
+  showAnswerButton.disabled = currentExercise.solved || currentExercise.attempts < 3 || currentExercise.answerShown;
+  showAnswerButton.textContent = currentExercise.attempts < 3
+    ? `Voir la reponse (${3 - currentExercise.attempts} erreur${3 - currentExercise.attempts > 1 ? "s" : ""} restante${3 - currentExercise.attempts > 1 ? "s" : ""})`
+    : "Voir la reponse";
 }
 
 function checkAnswer(event) {
@@ -204,10 +223,10 @@ function checkAnswer(event) {
 }
 
 function showAnswer() {
-  if (!currentExercise || currentExercise.solved) return;
+  if (!currentExercise || currentExercise.solved || currentExercise.attempts < 3 || currentExercise.answerShown) return;
   const stats = ensureSectionStats(activeSectionId);
-  currentExercise.attempts += 1;
-  stats.corrections += 1;
+  currentExercise.answerShown = true;
+  stats.answerReveals += 1;
   feedback.className = "feedback bad";
   feedback.textContent = `La reponse est ${formatNumber(currentExercise.answer)}. Recopie-la puis valide pour terminer.`;
   answerInput.value = formatNumber(currentExercise.answer);
@@ -222,12 +241,14 @@ function renderStats() {
     acc.attempts += stats.attempts;
     acc.firstTry += stats.correctFirstTry;
     acc.corrections += stats.corrections;
+    acc.answerReveals += stats.answerReveals;
     return acc;
-  }, { solved: 0, attempts: 0, firstTry: 0, corrections: 0 });
+  }, { solved: 0, attempts: 0, firstTry: 0, corrections: 0, answerReveals: 0 });
 
   document.getElementById("totalDone").textContent = totals.solved;
   document.getElementById("globalRate").textContent = rate(totals.firstTry, totals.solved);
   document.getElementById("totalCorrections").textContent = totals.corrections;
+  document.getElementById("totalReveals").textContent = totals.answerReveals;
 
   const statsList = document.getElementById("statsList");
   statsList.innerHTML = "";
@@ -239,7 +260,7 @@ function renderStats() {
     row.innerHTML = `
       <div>
         <strong>${section.title}</strong>
-        <p>${stats.solved} / ${TOTAL_PER_SECTION} termines - ${rate(stats.correctFirstTry, stats.solved)} de reussite - ${stats.corrections} correction${stats.corrections > 1 ? "s" : ""}</p>
+        <p>${stats.solved} / ${TOTAL_PER_SECTION} termines - ${rate(stats.correctFirstTry, stats.solved)} de reussite - ${stats.corrections} correction${stats.corrections > 1 ? "s" : ""} - ${stats.answerReveals} reponse${stats.answerReveals > 1 ? "s" : ""} affichee${stats.answerReveals > 1 ? "s" : ""}</p>
       </div>
       <div class="bar" aria-label="Progression ${progress}%"><span style="width:${progress}%"></span></div>
     `;
@@ -249,7 +270,10 @@ function renderStats() {
 
 function resetProgress() {
   if (!confirm("Remettre toute la progression a zero ?")) return;
-  localStorage.removeItem(STORAGE_KEY);
+  memoryState = null;
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem(STORAGE_KEY);
+  }
   state = loadState();
   renderHome();
   renderStats();
