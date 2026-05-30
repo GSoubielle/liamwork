@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Math Lab - Revision</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Revision de maths</p>
+        <h1>Math Lab</h1>
+      </div>
+      <button id="statsButton" class="ghost-button" type="button" aria-label="Voir les statistiques">
+        Stats
+      </button>
+    </header>
+
+    <main>
+      <section id="homeView" class="view active" aria-labelledby="homeTitle">
+        <div class="hero">
+          <div class="hero-copy">
+            <h2 id="homeTitle">Choisis une zone, entre ton resultat, valide, puis corrige si besoin.</h2>
+            <p>Les scores restent sur cet iPad. Chaque bonne reponse fait avancer la progression.</p>
+          </div>
+          <div class="quick-stats" aria-label="Progression rapide">
+            <span id="quickDone">0 / 0</span>
+            <small>exercices termines</small>
+          </div>
+        </div>
+
+        <div id="sectionGrid" class="section-grid" aria-label="Sections d'exercices"></div>
+      </section>
+
+      <section id="practiceView" class="view" aria-labelledby="practiceTitle">
+        <button id="backButton" class="text-button" type="button">Retour aux sections</button>
+        <div class="practice-shell">
+          <div class="practice-head">
+            <div>
+              <p id="practiceKicker" class="eyebrow">Section</p>
+              <h2 id="practiceTitle">Exercice</h2>
+            </div>
+            <div class="section-score">
+              <span id="sectionProgress">0 / 0</span>
+              <small>dans cette section</small>
+            </div>
+          </div>
+
+          <div class="exercise-card">
+            <div class="exercise-meta">
+              <span id="exerciseNumber">Exercice 1</span>
+              <span id="correctionCount">0 correction</span>
+            </div>
+            <div id="exercisePrompt" class="exercise-prompt" aria-live="polite"></div>
+            <form id="answerForm" class="answer-form">
+              <label for="answerInput">Ton resultat</label>
+              <div class="answer-row">
+                <input id="answerInput" inputmode="decimal" autocomplete="off" placeholder="Ex: -42 ou 12.5">
+                <button id="checkButton" class="primary-button" type="submit">Valider</button>
+              </div>
+            </form>
+            <div id="feedback" class="feedback" aria-live="polite"></div>
+            <div class="actions">
+              <button id="nextButton" class="primary-button secondary" type="button">Exercice suivant</button>
+              <button id="showAnswerButton" class="ghost-button" type="button">Voir la reponse</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="statsView" class="view" aria-labelledby="statsTitle">
+        <button id="statsBackButton" class="text-button" type="button">Retour aux sections</button>
+        <div class="stats-head">
+          <div>
+            <p class="eyebrow">Progression</p>
+            <h2 id="statsTitle">Tableau de bord</h2>
+          </div>
+          <button id="resetButton" class="danger-button" type="button">Remettre a zero</button>
+        </div>
+
+        <div class="stat-cards">
+          <article>
+            <span id="totalDone">0</span>
+            <small>exercices reussis</small>
+          </article>
+          <article>
+            <span id="globalRate">0%</span>
+            <small>taux de reussite</small>
+          </article>
+          <article>
+            <span id="totalCorrections">0</span>
+            <small>corrections necessaires</small>
+          </article>
+        </div>
+
+        <div id="statsList" class="stats-list"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
