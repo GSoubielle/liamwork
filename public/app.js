@@ -1,5 +1,21 @@
-const TOTAL_PER_SECTION = 20;
+const SERIES_SIZE = 20;
+const LEVELS = [
+  { id: "easy", label: "Facile", shortLabel: "Niv. 1", xp: 10 },
+  { id: "medium", label: "Intermediaire", shortLabel: "Niv. 2", xp: 15 },
+  { id: "hard", label: "Difficile", shortLabel: "Niv. 3", xp: 20 }
+];
 const STORAGE_KEY = "math-lab-progress-v1";
+
+const badgeCatalog = [
+  { id: "starter", name: "Premier pas", rule: (totals) => totals.solved >= 1 },
+  { id: "ten", name: "Echauffement", rule: (totals) => totals.solved >= 10 },
+  { id: "series", name: "Serie bouclee", rule: (totals) => totals.seriesCompleted >= 1 },
+  { id: "level2", name: "Niveau 2", rule: (totals) => totals.mediumSections >= 1 },
+  { id: "level3", name: "Niveau 3", rule: (totals) => totals.hardSections >= 1 },
+  { id: "streak5", name: "Combo x5", rule: (totals) => totals.bestStreak >= 5 },
+  { id: "streak10", name: "Combo x10", rule: (totals) => totals.bestStreak >= 10 },
+  { id: "hundred", name: "100 calculs", rule: (totals) => totals.solved >= 100 }
+];
 
 const sections = [
   {
@@ -57,9 +73,13 @@ const views = {
 
 const sectionGrid = document.getElementById("sectionGrid");
 const quickDone = document.getElementById("quickDone");
+const rewardStrip = document.getElementById("rewardStrip");
 const practiceKicker = document.getElementById("practiceKicker");
 const practiceTitle = document.getElementById("practiceTitle");
+const levelBadge = document.getElementById("levelBadge");
+const streakBadge = document.getElementById("streakBadge");
 const sectionProgress = document.getElementById("sectionProgress");
+const sectionProgressLabel = document.getElementById("sectionProgressLabel");
 const exerciseNumber = document.getElementById("exerciseNumber");
 const correctionCount = document.getElementById("correctionCount");
 const exercisePrompt = document.getElementById("exercisePrompt");
@@ -89,6 +109,10 @@ function loadState() {
   }
 
   return {
+    xp: 0,
+    streak: 0,
+    bestStreak: 0,
+    badges: [],
     sections: Object.fromEntries(sections.map((section) => [
       section.id,
       { solved: 0, attempts: 0, correctFirstTry: 0, corrections: 0, answerReveals: 0 }
@@ -115,6 +139,10 @@ function writeSavedState(value) {
 }
 
 function ensureSectionStats(sectionId) {
+  state.xp ||= 0;
+  state.streak ||= 0;
+  state.bestStreak ||= 0;
+  state.badges ||= [];
   if (!state.sections[sectionId]) {
     state.sections[sectionId] = { solved: 0, attempts: 0, correctFirstTry: 0, corrections: 0, answerReveals: 0 };
   }
@@ -130,11 +158,32 @@ function showView(name) {
 
 function renderHome() {
   const totalDone = sections.reduce((sum, section) => sum + ensureSectionStats(section.id).solved, 0);
-  quickDone.textContent = `${totalDone} / ${sections.length * TOTAL_PER_SECTION}`;
+  quickDone.textContent = totalDone;
+  rewardStrip.innerHTML = `
+    <div>
+      <strong>${state.xp || 0}</strong>
+      <span>points XP</span>
+    </div>
+    <div>
+      <strong>${state.bestStreak || 0}</strong>
+      <span>meilleure serie</span>
+    </div>
+    <div>
+      <strong>${state.badges?.length || 0}</strong>
+      <span>badges</span>
+    </div>
+    <div>
+      <strong>${sections.reduce((sum, section) => sum + getCompletedSeries(ensureSectionStats(section.id)), 0)}</strong>
+      <span>series terminees</span>
+    </div>
+  `;
 
   sectionGrid.innerHTML = "";
   sections.forEach((section) => {
     const stats = ensureSectionStats(section.id);
+    const level = getCurrentLevel(stats);
+    const progress = getSeriesProgress(stats);
+    const series = getCurrentSeries(stats);
     const button = document.createElement("button");
     button.type = "button";
     button.className = "section-card";
@@ -143,7 +192,8 @@ function renderHome() {
       <span class="math-mark">${section.mark}</span>
       <strong>${section.title}</strong>
       <p>${section.description}</p>
-      <span class="mini-progress">${Math.min(stats.solved, TOTAL_PER_SECTION)} / ${TOTAL_PER_SECTION}</span>
+      <span class="level-chip">${level.label}</span>
+      <span class="mini-progress">Serie ${series} - ${progress} / ${SERIES_SIZE}</span>
     `;
     button.addEventListener("click", () => startSection(section.id));
     sectionGrid.appendChild(button);
@@ -161,11 +211,16 @@ function startSection(sectionId) {
 
 function nextExercise() {
   const section = getSection(activeSectionId);
+  const stats = ensureSectionStats(activeSectionId);
+  const level = getCurrentLevel(stats);
   currentExercise = {
-    ...section.generator(),
+    ...section.generator(level),
+    level,
     attempts: 0,
     solved: false,
-    answerShown: false
+    answerShown: false,
+    seriesComplete: false,
+    unlockedBadges: []
   };
   answerInput.value = "";
   feedback.className = "feedback";
@@ -176,9 +231,15 @@ function nextExercise() {
 
 function renderExercise() {
   const stats = ensureSectionStats(activeSectionId);
-  exerciseNumber.textContent = `Exercice ${Math.min(stats.solved + 1, TOTAL_PER_SECTION)}`;
+  const progress = currentExercise.seriesComplete ? SERIES_SIZE : getSeriesProgress(stats);
+  const nextNumber = currentExercise.seriesComplete ? SERIES_SIZE : progress + 1;
+  const series = currentExercise.seriesComplete ? getCompletedSeries(stats) : getCurrentSeries(stats);
+  levelBadge.textContent = currentExercise.level.label;
+  streakBadge.textContent = `Combo ${state.streak || 0}`;
+  exerciseNumber.textContent = `Serie ${series} - exercice ${Math.min(nextNumber, SERIES_SIZE)}`;
   correctionCount.textContent = `${currentExercise.attempts} correction${currentExercise.attempts > 1 ? "s" : ""}`;
-  sectionProgress.textContent = `${Math.min(stats.solved, TOTAL_PER_SECTION)} / ${TOTAL_PER_SECTION}`;
+  sectionProgress.textContent = `${progress} / ${SERIES_SIZE}`;
+  sectionProgressLabel.textContent = `${currentExercise.level.shortLabel} dans cette serie`;
   exercisePrompt.textContent = currentExercise.prompt;
   showAnswerButton.disabled = currentExercise.solved || currentExercise.attempts < 3 || currentExercise.answerShown;
   showAnswerButton.textContent = currentExercise.attempts < 3
@@ -203,17 +264,24 @@ function checkAnswer(event) {
   if (sameNumber(value, currentExercise.answer)) {
     currentExercise.solved = true;
     stats.solved += 1;
+    const xpWon = currentExercise.level.xp + Math.max(0, 3 - currentExercise.attempts) * 2;
+    state.xp = (state.xp || 0) + xpWon;
+    state.streak = currentExercise.attempts === 0 && !currentExercise.answerShown ? (state.streak || 0) + 1 : 0;
+    state.bestStreak = Math.max(state.bestStreak || 0, state.streak || 0);
+    currentExercise.seriesComplete = stats.solved % SERIES_SIZE === 0;
+    currentExercise.unlockedBadges = unlockBadges();
     if (currentExercise.attempts === 0) {
       stats.correctFirstTry += 1;
-      feedback.textContent = "Juste du premier coup. Passe au suivant.";
+      feedback.textContent = buildSuccessMessage(`Juste du premier coup. +${xpWon} XP`);
     } else {
-      feedback.textContent = `Juste apres ${currentExercise.attempts} correction${currentExercise.attempts > 1 ? "s" : ""}.`;
+      feedback.textContent = buildSuccessMessage(`Juste apres ${currentExercise.attempts} correction${currentExercise.attempts > 1 ? "s" : ""}. +${xpWon} XP`);
     }
     feedback.className = "feedback good";
     saveState();
   } else {
     currentExercise.attempts += 1;
     stats.corrections += 1;
+    state.streak = 0;
     feedback.className = "feedback bad";
     feedback.textContent = hintFor(currentExercise.answer, value);
     saveState();
@@ -235,32 +303,33 @@ function showAnswer() {
 }
 
 function renderStats() {
-  const totals = sections.reduce((acc, section) => {
-    const stats = ensureSectionStats(section.id);
-    acc.solved += stats.solved;
-    acc.attempts += stats.attempts;
-    acc.firstTry += stats.correctFirstTry;
-    acc.corrections += stats.corrections;
-    acc.answerReveals += stats.answerReveals;
-    return acc;
-  }, { solved: 0, attempts: 0, firstTry: 0, corrections: 0, answerReveals: 0 });
+  const totals = collectTotals();
 
   document.getElementById("totalDone").textContent = totals.solved;
   document.getElementById("globalRate").textContent = rate(totals.firstTry, totals.solved);
   document.getElementById("totalCorrections").textContent = totals.corrections;
   document.getElementById("totalReveals").textContent = totals.answerReveals;
+  document.getElementById("totalXp").textContent = state.xp || 0;
+
+  const badgeList = document.getElementById("badgeList");
+  const unlocked = badgeCatalog.filter((badge) => state.badges?.includes(badge.id));
+  badgeList.innerHTML = unlocked.length
+    ? unlocked.map((badge) => `<span>${badge.name}</span>`).join("")
+    : "<p>Aucun badge pour le moment. Le premier arrive apres un exercice reussi.</p>";
 
   const statsList = document.getElementById("statsList");
   statsList.innerHTML = "";
   sections.forEach((section) => {
     const stats = ensureSectionStats(section.id);
-    const progress = Math.min(100, Math.round((stats.solved / TOTAL_PER_SECTION) * 100));
+    const progress = Math.round((getSeriesProgress(stats) / SERIES_SIZE) * 100);
+    const level = getCurrentLevel(stats);
+    const seriesCompleted = getCompletedSeries(stats);
     const row = document.createElement("article");
     row.className = "stats-row";
     row.innerHTML = `
       <div>
-        <strong>${section.title}</strong>
-        <p>${stats.solved} / ${TOTAL_PER_SECTION} termines - ${rate(stats.correctFirstTry, stats.solved)} de reussite - ${stats.corrections} correction${stats.corrections > 1 ? "s" : ""} - ${stats.answerReveals} reponse${stats.answerReveals > 1 ? "s" : ""} affichee${stats.answerReveals > 1 ? "s" : ""}</p>
+        <strong>${section.title} - ${level.label}</strong>
+        <p>${stats.solved} reussis - ${seriesCompleted} serie${seriesCompleted > 1 ? "s" : ""} terminee${seriesCompleted > 1 ? "s" : ""} - ${rate(stats.correctFirstTry, stats.solved)} de reussite - ${stats.corrections} correction${stats.corrections > 1 ? "s" : ""} - ${stats.answerReveals} reponse${stats.answerReveals > 1 ? "s" : ""} affichee${stats.answerReveals > 1 ? "s" : ""}</p>
       </div>
       <div class="bar" aria-label="Progression ${progress}%"><span style="width:${progress}%"></span></div>
     `;
@@ -279,65 +348,89 @@ function resetProgress() {
   renderStats();
 }
 
-function signedExercise() {
-  const a = randomInt(-95, 95);
-  let b = randomInt(-95, 95);
+function signedExercise(level) {
+  const ranges = [
+    [-50, 50],
+    [-120, 120],
+    [-300, 300]
+  ];
+  const [min, max] = ranges[getLevelIndex(level)];
+  const a = randomInt(min, max);
+  let b = randomInt(min, max);
   if (a === 0 && b === 0) b = 23;
   const op = Math.random() > 0.5 ? "+" : "-";
   const answer = op === "+" ? a + b : a - b;
   return { prompt: `(${a}) ${op} (${signed(b)})`, answer };
 }
 
-function priorityExercise() {
+function priorityExercise(level) {
+  const levelIndex = getLevelIndex(level);
+  const max = [5, 8, 12][levelIndex];
   const patterns = [
     () => {
-      const a = randomInt(2, 5), b = randomInt(2, 5), c = randomInt(2, 5), d = randomInt(2, 5);
+      const a = randomInt(2, max), b = randomInt(2, max), c = randomInt(2, max), d = randomInt(2, max);
       return { prompt: `(${a} x ${b} + ${c}) x ${d}`, answer: (a * b + c) * d };
     },
     () => {
-      const a = randomInt(3, 5), b = randomInt(2, 5), c = randomInt(2, 5), d = randomInt(2, 5);
+      const a = randomInt(3, max), b = randomInt(2, max), c = randomInt(2, max), d = randomInt(2, max);
       return { prompt: `${a} x ${b} + ${c} x ${d}`, answer: a * b + c * d };
     },
     () => {
-      const a = randomInt(3, 5), b = randomInt(2, 5), c = randomInt(2, 5), d = randomInt(2, 5), e = randomInt(2, 5);
+      const a = randomInt(3, max), b = randomInt(2, max), c = randomInt(2, max), d = randomInt(2, max), e = randomInt(2, max);
       return { prompt: `(${a} x ${b} + ${c}) x ${d} - ${e}`, answer: (a * b + c) * d - e };
+    },
+    () => {
+      const a = randomInt(2, max), b = randomInt(2, max), c = randomInt(2, max), d = randomInt(2, max), e = randomInt(2, max);
+      return { prompt: `${a} x (${b} + ${c}) - ${d} x ${e}`, answer: a * (b + c) - d * e };
     }
   ];
-  return pick(patterns)();
+  return pick(levelIndex === 0 ? patterns.slice(0, 3) : patterns)();
 }
 
-function decimalExercise() {
+function decimalExercise(level) {
+  const levelIndex = getLevelIndex(level);
+  const digits = levelIndex === 2 ? 2 : 1;
+  const max = [90, 180, 350][levelIndex];
   const patterns = [
     () => {
-      const a = randomDecimal(12, 90, 1);
-      const b = pick([0.2, 0.25, 0.5, 0.8]);
+      const a = randomDecimal(12, max, digits);
+      const b = pick(levelIndex === 0 ? [0.2, 0.25, 0.5, 0.8] : [0.2, 0.25, 0.5, 0.8, 1.5, 2.5]);
       return { prompt: `${formatNumber(a)} x ${formatNumber(b)}`, answer: round(a * b) };
     },
     () => {
-      const a = randomDecimal(4, 85, 1);
-      const b = randomDecimal(0.2, 9.9, 1);
+      const a = randomDecimal(4, max, digits);
+      const b = randomDecimal(0.2, levelIndex === 0 ? 9.9 : 49.9, digits);
       return { prompt: `${formatNumber(a)} + ${formatNumber(b)}`, answer: round(a + b) };
     },
     () => {
-      const a = randomInt(12, 480);
-      const b = pick([0.2, 0.25, 0.5]);
+      const a = randomInt(12, levelIndex === 0 ? 480 : 1200);
+      const b = pick(levelIndex === 2 ? [0.2, 0.25, 0.5, 0.8] : [0.2, 0.25, 0.5]);
       return { prompt: `${a} : ${formatNumber(b)}`, answer: round(a / b) };
     }
   ];
   return pick(patterns)();
 }
 
-function complementExercise() {
-  const target = pick([50, 100, 200, 1000]);
+function complementExercise(level) {
+  const targets = [
+    [50, 100],
+    [100, 200, 500],
+    [200, 1000, 2000]
+  ];
+  const target = pick(targets[getLevelIndex(level)]);
   const decimals = target <= 100;
-  const a = decimals ? randomDecimal(0.01, target - 1, 2) : randomDecimal(1, target - 1, 2);
+  const a = decimals ? randomDecimal(0.01, target - 1, 2) : randomDecimal(1, target - 1, getLevelIndex(level) === 0 ? 1 : 2);
   return { prompt: `${formatNumber(a)} + ? = ${target}`, answer: round(target - a) };
 }
 
-function divisionExercise() {
-  const divisors = [10, 5, 4, 2];
+function divisionExercise(level) {
+  const divisors = [
+    [10, 5, 4, 2],
+    [10, 5, 4, 2, 20, 25],
+    [10, 5, 4, 2, 20, 25, 50]
+  ][getLevelIndex(level)];
   const divisor = pick(divisors);
-  const result = divisor === 10 ? randomDecimal(0.1, 99.9, 1) : randomInt(2, 120);
+  const result = divisor === 10 ? randomDecimal(0.1, 99.9, 1) : randomInt(2, getLevelIndex(level) === 0 ? 120 : 300);
   const start = round(result * divisor);
   return { prompt: `${formatNumber(start)} : ${divisor}`, answer: round(result) };
 }
@@ -350,6 +443,77 @@ function hintFor(answer, value) {
 
 function getSection(sectionId) {
   return sections.find((section) => section.id === sectionId);
+}
+
+function getLevelIndex(level) {
+  return LEVELS.findIndex((candidate) => candidate.id === level.id);
+}
+
+function getCurrentLevel(stats) {
+  return LEVELS[Math.min(getCompletedSeries(stats), LEVELS.length - 1)];
+}
+
+function getCompletedSeries(stats) {
+  return Math.floor(stats.solved / SERIES_SIZE);
+}
+
+function getCurrentSeries(stats) {
+  return getCompletedSeries(stats) + 1;
+}
+
+function getSeriesProgress(stats) {
+  return stats.solved % SERIES_SIZE;
+}
+
+function collectTotals() {
+  return sections.reduce((acc, section) => {
+    const stats = ensureSectionStats(section.id);
+    const completed = getCompletedSeries(stats);
+    acc.solved += stats.solved;
+    acc.attempts += stats.attempts;
+    acc.firstTry += stats.correctFirstTry;
+    acc.corrections += stats.corrections;
+    acc.answerReveals += stats.answerReveals;
+    acc.seriesCompleted += completed;
+    if (completed >= 1) acc.mediumSections += 1;
+    if (completed >= 2) acc.hardSections += 1;
+    return acc;
+  }, {
+    solved: 0,
+    attempts: 0,
+    firstTry: 0,
+    corrections: 0,
+    answerReveals: 0,
+    seriesCompleted: 0,
+    mediumSections: 0,
+    hardSections: 0,
+    bestStreak: state.bestStreak || 0
+  });
+}
+
+function unlockBadges() {
+  const totals = collectTotals();
+  const unlocked = [];
+  badgeCatalog.forEach((badge) => {
+    if (!state.badges.includes(badge.id) && badge.rule(totals)) {
+      state.badges.push(badge.id);
+      unlocked.push(badge.name);
+    }
+  });
+  return unlocked;
+}
+
+function buildSuccessMessage(base) {
+  const parts = [base];
+  if (state.streak >= 5) parts.push(`Combo ${state.streak}`);
+  if (currentExercise.seriesComplete) {
+    const nextLevel = getCurrentLevel(ensureSectionStats(activeSectionId));
+    parts.push(`Serie terminee. Prochain niveau: ${nextLevel.label}`);
+  }
+  if (currentExercise.unlockedBadges.length) {
+    parts.push(`Badge: ${currentExercise.unlockedBadges.join(", ")}`);
+  }
+  return parts.join(" - ");
 }
 
 function randomInt(min, max) {

@@ -22,7 +22,7 @@
         <div class="hero">
           <div class="hero-copy">
             <h2 id="homeTitle">Choisis une zone, entre ton resultat, valide, puis corrige si besoin.</h2>
-            <p>Les scores restent sur cet iPad. Chaque bonne reponse fait avancer la progression.</p>
+            <p>Termine des series de 20, monte de niveau et debloque des badges.</p>
           </div>
           <div class="quick-stats" aria-label="Progression rapide">
             <span id="quickDone">0 / 0</span>
@@ -30,6 +30,7 @@
           </div>
         </div>
 
+        <div id="rewardStrip" class="reward-strip" aria-label="Recompenses"></div>
         <div id="sectionGrid" class="section-grid" aria-label="Sections d'exercices"></div>
       </section>
 
@@ -40,10 +41,14 @@
             <div>
               <p id="practiceKicker" class="eyebrow">Section</p>
               <h2 id="practiceTitle">Exercice</h2>
+              <div class="level-line">
+                <span id="levelBadge" class="level-badge">Facile</span>
+                <span id="streakBadge" class="streak-badge">Serie 0</span>
+              </div>
             </div>
             <div class="section-score">
               <span id="sectionProgress">0 / 0</span>
-              <small>dans cette section</small>
+              <small id="sectionProgressLabel">dans cette serie</small>
             </div>
           </div>
 
@@ -96,8 +101,13 @@
             <span id="totalReveals">0</span>
             <small>reponses affichees</small>
           </article>
+          <article>
+            <span id="totalXp">0</span>
+            <small>points XP</small>
+          </article>
         </div>
 
+        <div id="badgeList" class="badge-list" aria-label="Badges debloques"></div>
         <div id="statsList" class="stats-list"></div>
       </section>
     </main>
