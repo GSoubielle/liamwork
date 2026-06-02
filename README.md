@@ -21,6 +21,7 @@ Apres le niveau difficile, les exercices continuent au niveau difficile pour gar
 ## Recompenses
 
 L'application attribue des XP, suit les combos de bonnes reponses et debloque des badges pour encourager la regularite.
+Les recompenses sont interactives : cartes animees apres une reussite importante, album de badges cliquable, barre de combo pendant l'exercice et mini-animation lors des gains.
 
 La progression est enregistree dans le navigateur avec `localStorage`.
 

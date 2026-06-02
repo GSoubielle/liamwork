@@ -7,14 +7,14 @@ const LEVELS = [
 const STORAGE_KEY = "math-lab-progress-v1";
 
 const badgeCatalog = [
-  { id: "starter", name: "Premier pas", rule: (totals) => totals.solved >= 1 },
-  { id: "ten", name: "Echauffement", rule: (totals) => totals.solved >= 10 },
-  { id: "series", name: "Serie bouclee", rule: (totals) => totals.seriesCompleted >= 1 },
-  { id: "level2", name: "Niveau 2", rule: (totals) => totals.mediumSections >= 1 },
-  { id: "level3", name: "Niveau 3", rule: (totals) => totals.hardSections >= 1 },
-  { id: "streak5", name: "Combo x5", rule: (totals) => totals.bestStreak >= 5 },
-  { id: "streak10", name: "Combo x10", rule: (totals) => totals.bestStreak >= 10 },
-  { id: "hundred", name: "100 calculs", rule: (totals) => totals.solved >= 100 }
+  { id: "starter", name: "Premier pas", symbol: "01", color: "#246bfe", description: "Reussir le premier calcul.", rule: (totals) => totals.solved >= 1 },
+  { id: "ten", name: "Echauffement", symbol: "10", color: "#f77f00", description: "Reussir 10 calculs.", rule: (totals) => totals.solved >= 10 },
+  { id: "series", name: "Serie bouclee", symbol: "20", color: "#00a676", description: "Terminer une serie de 20.", rule: (totals) => totals.seriesCompleted >= 1 },
+  { id: "level2", name: "Niveau 2", symbol: "L2", color: "#6c4bd8", description: "Atteindre le niveau intermediaire.", rule: (totals) => totals.mediumSections >= 1 },
+  { id: "level3", name: "Niveau 3", symbol: "L3", color: "#132033", description: "Atteindre le niveau difficile.", rule: (totals) => totals.hardSections >= 1 },
+  { id: "streak5", name: "Combo x5", symbol: "x5", color: "#ef476f", description: "Reussir 5 calculs d'affilee du premier coup.", rule: (totals) => totals.bestStreak >= 5 },
+  { id: "streak10", name: "Combo x10", symbol: "x10", color: "#118ab2", description: "Reussir 10 calculs d'affilee du premier coup.", rule: (totals) => totals.bestStreak >= 10 },
+  { id: "hundred", name: "100 calculs", symbol: "100", color: "#8a5a00", description: "Reussir 100 calculs.", rule: (totals) => totals.solved >= 100 }
 ];
 
 const sections = [
@@ -78,6 +78,7 @@ const practiceKicker = document.getElementById("practiceKicker");
 const practiceTitle = document.getElementById("practiceTitle");
 const levelBadge = document.getElementById("levelBadge");
 const streakBadge = document.getElementById("streakBadge");
+const comboFill = document.getElementById("comboFill");
 const sectionProgress = document.getElementById("sectionProgress");
 const sectionProgressLabel = document.getElementById("sectionProgressLabel");
 const exerciseNumber = document.getElementById("exerciseNumber");
@@ -88,6 +89,13 @@ const answerInput = document.getElementById("answerInput");
 const feedback = document.getElementById("feedback");
 const nextButton = document.getElementById("nextButton");
 const showAnswerButton = document.getElementById("showAnswerButton");
+const rewardOverlay = document.getElementById("rewardOverlay");
+const rewardCloseButton = document.getElementById("rewardCloseButton");
+const rewardIcon = document.getElementById("rewardIcon");
+const rewardKicker = document.getElementById("rewardKicker");
+const rewardTitle = document.getElementById("rewardTitle");
+const rewardText = document.getElementById("rewardText");
+const rewardChips = document.getElementById("rewardChips");
 
 document.getElementById("statsButton").addEventListener("click", () => showView("stats"));
 document.getElementById("backButton").addEventListener("click", () => showView("home"));
@@ -96,6 +104,10 @@ document.getElementById("resetButton").addEventListener("click", resetProgress);
 nextButton.addEventListener("click", nextExercise);
 showAnswerButton.addEventListener("click", showAnswer);
 answerForm.addEventListener("submit", checkAnswer);
+rewardCloseButton.addEventListener("click", hideRewardOverlay);
+rewardOverlay.addEventListener("click", (event) => {
+  if (event.target === rewardOverlay) hideRewardOverlay();
+});
 
 renderHome();
 renderStats();
@@ -160,23 +172,26 @@ function renderHome() {
   const totalDone = sections.reduce((sum, section) => sum + ensureSectionStats(section.id).solved, 0);
   quickDone.textContent = totalDone;
   rewardStrip.innerHTML = `
-    <div>
+    <button type="button" class="reward-tile" data-reward="xp">
       <strong>${state.xp || 0}</strong>
       <span>points XP</span>
-    </div>
-    <div>
+    </button>
+    <button type="button" class="reward-tile" data-reward="streak">
       <strong>${state.bestStreak || 0}</strong>
       <span>meilleure serie</span>
-    </div>
-    <div>
+    </button>
+    <button type="button" class="reward-tile" data-reward="badges">
       <strong>${state.badges?.length || 0}</strong>
       <span>badges</span>
-    </div>
-    <div>
+    </button>
+    <button type="button" class="reward-tile" data-reward="series">
       <strong>${sections.reduce((sum, section) => sum + getCompletedSeries(ensureSectionStats(section.id)), 0)}</strong>
       <span>series terminees</span>
-    </div>
+    </button>
   `;
+  rewardStrip.querySelectorAll(".reward-tile").forEach((tile) => {
+    tile.addEventListener("click", () => showRewardInfo(tile.dataset.reward));
+  });
 
   sectionGrid.innerHTML = "";
   sections.forEach((section) => {
@@ -236,6 +251,7 @@ function renderExercise() {
   const series = currentExercise.seriesComplete ? getCompletedSeries(stats) : getCurrentSeries(stats);
   levelBadge.textContent = currentExercise.level.label;
   streakBadge.textContent = `Combo ${state.streak || 0}`;
+  comboFill.style.width = `${Math.min(100, ((state.streak || 0) / 10) * 100)}%`;
   exerciseNumber.textContent = `Serie ${series} - exercice ${Math.min(nextNumber, SERIES_SIZE)}`;
   correctionCount.textContent = `${currentExercise.attempts} correction${currentExercise.attempts > 1 ? "s" : ""}`;
   sectionProgress.textContent = `${progress} / ${SERIES_SIZE}`;
@@ -250,6 +266,7 @@ function renderExercise() {
 function checkAnswer(event) {
   event.preventDefault();
   if (!currentExercise || currentExercise.solved) return;
+  let earnedReward = null;
 
   const value = parseFrenchNumber(answerInput.value);
   if (Number.isNaN(value)) {
@@ -276,6 +293,13 @@ function checkAnswer(event) {
     } else {
       feedback.textContent = buildSuccessMessage(`Juste apres ${currentExercise.attempts} correction${currentExercise.attempts > 1 ? "s" : ""}. +${xpWon} XP`);
     }
+    earnedReward = {
+      xpWon,
+      seriesComplete: currentExercise.seriesComplete,
+      level: currentExercise.level,
+      unlockedBadges: currentExercise.unlockedBadges,
+      streak: state.streak || 0
+    };
     feedback.className = "feedback good";
     saveState();
   } else {
@@ -288,6 +312,7 @@ function checkAnswer(event) {
   }
 
   renderExercise();
+  if (earnedReward) showSuccessReward(earnedReward);
 }
 
 function showAnswer() {
@@ -312,10 +337,10 @@ function renderStats() {
   document.getElementById("totalXp").textContent = state.xp || 0;
 
   const badgeList = document.getElementById("badgeList");
-  const unlocked = badgeCatalog.filter((badge) => state.badges?.includes(badge.id));
-  badgeList.innerHTML = unlocked.length
-    ? unlocked.map((badge) => `<span>${badge.name}</span>`).join("")
-    : "<p>Aucun badge pour le moment. Le premier arrive apres un exercice reussi.</p>";
+  badgeList.innerHTML = badgeCatalog.map((badge) => renderBadgeCard(badge, state.badges?.includes(badge.id))).join("");
+  badgeList.querySelectorAll(".badge-card").forEach((card) => {
+    card.addEventListener("click", () => showBadgeDetail(card.dataset.badgeId));
+  });
 
   const statsList = document.getElementById("statsList");
   statsList.innerHTML = "";
@@ -497,7 +522,7 @@ function unlockBadges() {
   badgeCatalog.forEach((badge) => {
     if (!state.badges.includes(badge.id) && badge.rule(totals)) {
       state.badges.push(badge.id);
-      unlocked.push(badge.name);
+      unlocked.push(badge);
     }
   });
   return unlocked;
@@ -511,9 +536,145 @@ function buildSuccessMessage(base) {
     parts.push(`Serie terminee. Prochain niveau: ${nextLevel.label}`);
   }
   if (currentExercise.unlockedBadges.length) {
-    parts.push(`Badge: ${currentExercise.unlockedBadges.join(", ")}`);
+    parts.push(`Badge: ${currentExercise.unlockedBadges.map((badge) => badge.name).join(", ")}`);
   }
   return parts.join(" - ");
+}
+
+function renderBadgeCard(badge, unlocked) {
+  return `
+    <button class="badge-card ${unlocked ? "unlocked" : "locked"}" type="button" data-badge-id="${badge.id}" style="--badge-color:${badge.color}">
+      <span class="badge-art">${badge.symbol}</span>
+      <span>
+        <strong>${badge.name}</strong>
+        <small>${unlocked ? "Debloque" : "A debloquer"}</small>
+      </span>
+    </button>
+  `;
+}
+
+function showSuccessReward(reward) {
+  const badge = reward.unlockedBadges[0];
+  const comboMilestone = reward.streak >= 5 && reward.streak % 5 === 0;
+  if (!reward.seriesComplete && !badge && !comboMilestone) {
+    showXpPop(reward.xpWon);
+    return;
+  }
+
+  const title = reward.seriesComplete
+    ? "Serie terminee"
+    : badge
+      ? "Badge debloque"
+      : comboMilestone
+        ? "Combo en feu"
+        : "XP gagne";
+  const text = reward.seriesComplete
+    ? `Tu as boucle 20 exercices. La prochaine serie passe au niveau ${getCurrentLevel(ensureSectionStats(activeSectionId)).label}.`
+    : badge
+      ? `${badge.name}: ${badge.description}`
+      : comboMilestone
+        ? `Tu as ${reward.streak} bonnes reponses d'affilee.`
+        : "Continue comme ca pour debloquer les prochains badges.";
+
+  showRewardOverlay({
+    symbol: badge?.symbol || (reward.seriesComplete ? "20" : "XP"),
+    color: badge?.color || (reward.seriesComplete ? "#00a676" : "#246bfe"),
+    kicker: reward.seriesComplete ? "Nouvelle serie" : "Recompense",
+    title,
+    text,
+    chips: [
+      `+${reward.xpWon} XP`,
+      reward.streak ? `Combo ${reward.streak}` : "Combo remis a zero",
+      `${state.badges.length} badge${state.badges.length > 1 ? "s" : ""}`
+    ]
+  });
+}
+
+function showXpPop(xpWon) {
+  const pop = document.createElement("span");
+  pop.className = "xp-pop";
+  pop.textContent = `+${xpWon} XP`;
+  document.querySelector(".exercise-card").appendChild(pop);
+  pop.addEventListener("animationend", () => pop.remove());
+}
+
+function showBadgeDetail(badgeId) {
+  const badge = badgeCatalog.find((candidate) => candidate.id === badgeId);
+  if (!badge) return;
+  const unlocked = state.badges.includes(badge.id);
+  showRewardOverlay({
+    symbol: badge.symbol,
+    color: badge.color,
+    kicker: unlocked ? "Badge debloque" : "Badge verrouille",
+    title: badge.name,
+    text: badge.description,
+    chips: [unlocked ? "Dans ta collection" : "Continue pour le gagner"]
+  });
+}
+
+function showRewardInfo(type) {
+  const totals = collectTotals();
+  const content = {
+    xp: {
+      symbol: "XP",
+      color: "#246bfe",
+      title: `${state.xp || 0} XP`,
+      text: "Les XP montent plus vite quand tu reussis sans correction."
+    },
+    streak: {
+      symbol: "x",
+      color: "#ef476f",
+      title: `${state.bestStreak || 0} de meilleure serie`,
+      text: "Le combo augmente avec les bonnes reponses du premier coup."
+    },
+    badges: {
+      symbol: "BD",
+      color: "#6c4bd8",
+      title: `${state.badges.length} badges`,
+      text: "Ouvre les statistiques pour voir toute la collection."
+    },
+    series: {
+      symbol: "20",
+      color: "#00a676",
+      title: `${totals.seriesCompleted} series terminees`,
+      text: "Chaque serie de 20 debloque un niveau plus difficile."
+    }
+  }[type];
+  showRewardOverlay({ kicker: "Progression", chips: [], ...content });
+}
+
+function showRewardOverlay({ symbol, color, kicker, title, text, chips }) {
+  rewardIcon.textContent = symbol;
+  rewardIcon.style.setProperty("--reward-color", color);
+  rewardKicker.textContent = kicker;
+  rewardTitle.textContent = title;
+  rewardText.textContent = text;
+  rewardChips.innerHTML = chips.map((chip) => `<span>${chip}</span>`).join("");
+  rewardOverlay.setAttribute("aria-hidden", "false");
+  rewardOverlay.classList.remove("active");
+  rewardOverlay.offsetHeight;
+  rewardOverlay.classList.add("active");
+  launchRewardBurst();
+}
+
+function hideRewardOverlay() {
+  rewardOverlay.classList.remove("active");
+  rewardOverlay.setAttribute("aria-hidden", "true");
+}
+
+function launchRewardBurst() {
+  document.querySelectorAll(".burst-piece").forEach((piece) => piece.remove());
+  const colors = ["#246bfe", "#00a676", "#ef476f", "#ffd166", "#f77f00"];
+  for (let index = 0; index < 18; index += 1) {
+    const piece = document.createElement("span");
+    piece.className = "burst-piece";
+    piece.style.left = `${48 + randomInt(-18, 18)}%`;
+    piece.style.setProperty("--burst-x", `${randomInt(-180, 180)}px`);
+    piece.style.setProperty("--burst-y", `${randomInt(-180, -60)}px`);
+    piece.style.setProperty("--burst-color", pick(colors));
+    rewardOverlay.appendChild(piece);
+    piece.addEventListener("animationend", () => piece.remove());
+  }
 }
 
 function randomInt(min, max) {

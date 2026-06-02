@@ -45,6 +45,9 @@
                 <span id="levelBadge" class="level-badge">Facile</span>
                 <span id="streakBadge" class="streak-badge">Serie 0</span>
               </div>
+              <div class="combo-track" aria-label="Progression du combo">
+                <span id="comboFill"></span>
+              </div>
             </div>
             <div class="section-score">
               <span id="sectionProgress">0 / 0</span>
@@ -111,6 +114,17 @@
         <div id="statsList" class="stats-list"></div>
       </section>
     </main>
+
+    <div id="rewardOverlay" class="reward-overlay" aria-live="polite" aria-hidden="true">
+      <div class="reward-card">
+        <button id="rewardCloseButton" class="reward-close" type="button" aria-label="Fermer la recompense">x</button>
+        <div id="rewardIcon" class="reward-icon">XP</div>
+        <p id="rewardKicker" class="eyebrow">Recompense</p>
+        <strong id="rewardTitle">Bien joue</strong>
+        <p id="rewardText">Tu gagnes des XP.</p>
+        <div id="rewardChips" class="reward-chips"></div>
+      </div>
+    </div>
 
     <script src="app.js"></script>
   </body>
