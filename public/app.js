@@ -544,11 +544,10 @@ function buildSuccessMessage(base) {
 function renderBadgeCard(badge, unlocked) {
   return `
     <button class="badge-card ${unlocked ? "unlocked" : "locked"}" type="button" data-badge-id="${badge.id}" style="--badge-color:${badge.color}">
+      <span class="badge-state" aria-hidden="true">${unlocked ? "ok" : "..."}</span>
       <span class="badge-art">${badge.symbol}</span>
-      <span>
-        <strong>${badge.name}</strong>
-        <small>${unlocked ? "Debloque" : "A debloquer"}</small>
-      </span>
+      <strong>${badge.name}</strong>
+      <small>${unlocked ? "Gagne" : "Verrouille"}</small>
     </button>
   `;
 }
